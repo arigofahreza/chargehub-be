@@ -23,3 +23,4 @@ class ActivityLog(Base):
     created_by: Mapped[str] = mapped_column(String, nullable=False)
     km_driven: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
     energy_kwh: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
+    duration_minutes: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)

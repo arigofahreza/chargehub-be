@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -36,10 +37,12 @@ def get_template(template_id: str, db: Session = Depends(get_db)):
 def create_template(body: NotificationTemplateCreate, db: Session = Depends(get_db)):
     from datetime import datetime
     last_sent_dt = datetime.fromisoformat(body.last_sent.replace("Z", "+00:00")) if body.last_sent else datetime.utcnow()
+    rids = body.recipient_ids or []
     t = NotificationTemplate(
         name=body.name, message=body.message, status=body.status,
-        employee_count=body.employee_count, phone_count=body.phone_count,
+        employee_count=len(rids), phone_count=len(rids),
         last_sent=last_sent_dt, category=body.category,
+        recipient_ids=json.dumps(rids),
     )
     db.add(t)
     db.commit()
@@ -56,6 +59,11 @@ def patch_template(template_id: str, body: NotificationTemplatePatch, db: Sessio
     data = body.model_dump(exclude_unset=True, by_alias=False)
     if "last_sent" in data and isinstance(data["last_sent"], str):
         data["last_sent"] = datetime.fromisoformat(data["last_sent"].replace("Z", "+00:00"))
+    if "recipient_ids" in data and isinstance(data["recipient_ids"], list):
+        rids = data["recipient_ids"]
+        data["recipient_ids"] = json.dumps(rids)
+        data["employee_count"] = len(rids)
+        data["phone_count"] = len(rids)
     for key, value in data.items():
         setattr(t, key, value)
     db.commit()

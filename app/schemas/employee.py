@@ -6,7 +6,7 @@ EmployeeStatus = Literal["active", "on-leave", "inactive"]
 
 class EmployeeBase(BaseModel):
     name: str
-    email: str
+    email: Optional[str] = None
     job_title: str = Field(alias="jobTitle")
     phone: str
     status: EmployeeStatus
@@ -35,7 +35,7 @@ class EmployeePatch(BaseModel):
 class EmployeeOut(BaseModel):
     id: str
     name: str
-    email: str
+    email: Optional[str] = None
     job_title: str = Field(serialization_alias="jobTitle")
     phone: str
     status: EmployeeStatus

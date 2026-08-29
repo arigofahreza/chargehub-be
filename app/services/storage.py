@@ -19,10 +19,7 @@ def get_minio() -> Minio:
     return _client
 
 
-def upload_vehicle_photo(file_bytes: bytes, content_type: str, ext: str) -> str:
-    client = get_minio()
-    bucket = settings.minio_bucket
-
+def _ensure_bucket(client: Minio, bucket: str) -> None:
     try:
         if not client.bucket_exists(bucket):
             client.make_bucket(bucket)
@@ -30,7 +27,13 @@ def upload_vehicle_photo(file_bytes: bytes, content_type: str, ext: str) -> str:
     except S3Error:
         pass
 
-    object_name = f"vehicles/{uuid.uuid4().hex}{ext}"
+
+def upload_asset(file_bytes: bytes, content_type: str, ext: str, prefix: str = "vehicles") -> str:
+    client = get_minio()
+    bucket = settings.minio_bucket
+    _ensure_bucket(client, bucket)
+
+    object_name = f"{prefix}/{uuid.uuid4().hex}{ext}"
     client.put_object(
         bucket,
         object_name,
@@ -41,6 +44,10 @@ def upload_vehicle_photo(file_bytes: bytes, content_type: str, ext: str) -> str:
 
     scheme = "https" if settings.minio_secure else "http"
     return f"{scheme}://{settings.minio_endpoint}/{bucket}/{object_name}"
+
+
+def upload_vehicle_photo(file_bytes: bytes, content_type: str, ext: str) -> str:
+    return upload_asset(file_bytes, content_type, ext, prefix="vehicles")
 
 
 def _set_public_policy(client: Minio, bucket: str) -> None:

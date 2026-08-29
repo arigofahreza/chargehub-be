@@ -1,8 +1,13 @@
+STRONG_PW = "Secret@123"
+
+
 def test_register_user(client):
     r = client.post("/api/v1/auth/register", json={
+        "username": "testuser",
         "email": "test@example.com",
-        "password": "secret123",
-        "fullName": "Test User",
+        "password": STRONG_PW,
+        "firstName": "Test",
+        "lastName": "User",
     })
     assert r.status_code == 201
     data = r.json()
@@ -11,22 +16,39 @@ def test_register_user(client):
     assert "id" in data
 
 
+def test_register_weak_password(client):
+    r = client.post("/api/v1/auth/register", json={
+        "username": "weakuser",
+        "email": "weak@example.com",
+        "password": "password",
+        "firstName": "Weak",
+    })
+    assert r.status_code == 422
+
+
 def test_register_duplicate_email(client):
-    payload = {"email": "dup@example.com", "password": "pass", "fullName": "User"}
+    payload = {
+        "username": "dupuser",
+        "email": "dup@example.com",
+        "password": STRONG_PW,
+        "firstName": "Dup",
+    }
     client.post("/api/v1/auth/register", json=payload)
+    payload["username"] = "dupuser2"
     r = client.post("/api/v1/auth/register", json=payload)
     assert r.status_code == 400
 
 
 def test_login_success(client):
     client.post("/api/v1/auth/register", json={
+        "username": "loginuser",
         "email": "login@example.com",
-        "password": "mypass",
-        "fullName": "Login User",
+        "password": STRONG_PW,
+        "firstName": "Login",
     })
     r = client.post("/api/v1/auth/login", json={
-        "email": "login@example.com",
-        "password": "mypass",
+        "username": "loginuser",
+        "password": STRONG_PW,
     })
     assert r.status_code == 200
     data = r.json()
@@ -37,12 +59,13 @@ def test_login_success(client):
 
 def test_login_wrong_password(client):
     client.post("/api/v1/auth/register", json={
+        "username": "wronguser",
         "email": "wrong@example.com",
-        "password": "correct",
-        "fullName": "Wrong User",
+        "password": STRONG_PW,
+        "firstName": "Wrong",
     })
     r = client.post("/api/v1/auth/login", json={
-        "email": "wrong@example.com",
+        "username": "wronguser",
         "password": "incorrect",
     })
     assert r.status_code == 401

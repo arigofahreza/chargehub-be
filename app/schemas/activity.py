@@ -14,6 +14,8 @@ class ActivityLogBase(BaseModel):
     driver: str
     status: ActivityStatus
     created_by: str = Field(alias="createdBy")
+    duration_minutes: Optional[float] = Field(None, alias="durationMinutes")
+    energy_kwh: Optional[float] = Field(None, alias="energyKwh")
 
     model_config = {"populate_by_name": True}
 
@@ -31,6 +33,8 @@ class ActivityLogPatch(BaseModel):
     driver: Optional[str] = None
     status: Optional[ActivityStatus] = None
     created_by: Optional[str] = Field(None, alias="createdBy")
+    duration_minutes: Optional[float] = Field(None, alias="durationMinutes")
+    energy_kwh: Optional[float] = Field(None, alias="energyKwh")
 
     model_config = {"populate_by_name": True}
 
@@ -45,6 +49,8 @@ class ActivityLogOut(BaseModel):
     driver: str
     status: ActivityStatus
     created_by: str = Field(serialization_alias="createdBy")
+    duration_minutes: Optional[float] = Field(None, serialization_alias="durationMinutes")
+    energy_kwh: Optional[float] = Field(None, serialization_alias="energyKwh")
 
     model_config = {"populate_by_name": True}
 
@@ -60,6 +66,8 @@ class ActivityLogOut(BaseModel):
             vehicle_id=a.vehicle_id, vehicle_name=a.vehicle_name,
             unit_id=a.unit_id, service_type=a.service_type,
             driver=a.driver, status=a.status, created_by=a.created_by,
+            duration_minutes=getattr(a, "duration_minutes", None),
+            energy_kwh=getattr(a, "energy_kwh", None),
         )
 
     def model_dump_camel(self) -> dict:

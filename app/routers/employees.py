@@ -46,6 +46,15 @@ def create_employee(body: EmployeeCreate, db: Session = Depends(get_db)):
     return EmployeeOut.from_orm_model(e).model_dump_camel()
 
 
+@router.delete("/{employee_id}", status_code=204)
+def delete_employee(employee_id: str, db: Session = Depends(get_db)):
+    e = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not e:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    db.delete(e)
+    db.commit()
+
+
 @router.patch("/{employee_id}")
 def patch_employee(employee_id: str, body: EmployeePatch, db: Session = Depends(get_db)):
     e = db.query(Employee).filter(Employee.id == employee_id).first()

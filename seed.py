@@ -17,12 +17,28 @@ def seed():
     db = SessionLocal()
     try:
         # Admin user
-        if not db.query(User).filter(User.email == "admin@chargehub.com").first():
+        admin = db.query(User).filter(User.username == "admin").first()
+        if admin:
+            admin.hashed_password = hash_password("Admin@123")
+            admin.role = "admin"
+        else:
             db.add(User(
+                username="admin",
                 email="admin@chargehub.com",
-                hashed_password=hash_password("admin123"),
+                hashed_password=hash_password("Admin@123"),
                 full_name="Admin User",
                 role="admin",
+            ))
+
+        # Operator user
+        operator = db.query(User).filter(User.username == "operator").first()
+        if not operator:
+            db.add(User(
+                username="operator",
+                email="operator@chargehub.com",
+                hashed_password=hash_password("Operator@123"),
+                full_name="Operator User",
+                role="operator",
             ))
 
         # Vehicles
@@ -76,45 +92,49 @@ def seed():
                         vehicle_id="veh-001", vehicle_name="Tesla Model 3",
                         unit_id="unit-001", service_type="Charging",
                         driver="Emily Rodriguez", status="completed", created_by="sarah@chargehub.com",
-                        km_driven=128.5, energy_kwh=32.4),
+                        km_driven=128.5, energy_kwh=32.4, duration_minutes=90),
             ActivityLog(id="act-002", date_time=datetime(2024, 1, 15, 14, 0),
                         vehicle_id="veh-002", vehicle_name="Nissan Leaf",
                         unit_id="unit-002", service_type="Inspection",
                         driver="David Kim", status="completed", created_by="sarah@chargehub.com",
-                        km_driven=45.2, energy_kwh=11.8),
+                        km_driven=45.2, energy_kwh=11.8, duration_minutes=60),
             ActivityLog(id="act-003", date_time=datetime(2024, 1, 16, 9, 0),
                         vehicle_id="veh-003", vehicle_name="Chevrolet Bolt",
                         unit_id="unit-003", service_type="Maintenance",
                         driver="Michael Chen", status="in-progress", created_by="sarah@chargehub.com",
-                        km_driven=0.0, energy_kwh=0.0),
+                        km_driven=0.0, energy_kwh=0.0, duration_minutes=120),
             ActivityLog(id="act-004", date_time=datetime(2024, 1, 16, 11, 30),
                         vehicle_id="veh-004", vehicle_name="Ford F-150 Lightning",
                         unit_id="unit-001", service_type="Charging",
                         driver="Emily Rodriguez", status="completed", created_by="sarah@chargehub.com",
-                        km_driven=215.0, energy_kwh=55.2),
+                        km_driven=215.0, energy_kwh=55.2, duration_minutes=150),
             ActivityLog(id="act-005", date_time=datetime(2024, 1, 17, 8, 0),
                         vehicle_id="veh-001", vehicle_name="Tesla Model 3",
                         unit_id="unit-004", service_type="Charging",
                         driver="Emily Rodriguez", status="completed", created_by="sarah@chargehub.com",
-                        km_driven=98.3, energy_kwh=25.1),
+                        km_driven=98.3, energy_kwh=25.1, duration_minutes=75),
             ActivityLog(id="act-006", date_time=datetime(2024, 1, 17, 13, 0),
                         vehicle_id="veh-005", vehicle_name="Rivian R1T",
                         unit_id="unit-002", service_type="Charging",
                         driver="Sarah Johnson", status="completed", created_by="sarah@chargehub.com",
-                        km_driven=178.6, energy_kwh=48.3),
+                        km_driven=178.6, energy_kwh=48.3, duration_minutes=120),
             ActivityLog(id="act-007", date_time=datetime(2024, 1, 18, 9, 30),
                         vehicle_id="veh-002", vehicle_name="Nissan Leaf",
                         unit_id="unit-003", service_type="Charging",
                         driver="David Kim", status="completed", created_by="sarah@chargehub.com",
-                        km_driven=62.1, energy_kwh=16.5),
+                        km_driven=62.1, energy_kwh=16.5, duration_minutes=45),
             ActivityLog(id="act-008", date_time=datetime(2024, 1, 18, 15, 0),
                         vehicle_id="veh-004", vehicle_name="Ford F-150 Lightning",
                         unit_id="unit-001", service_type="Charging",
                         driver="Emily Rodriguez", status="completed", created_by="sarah@chargehub.com",
-                        km_driven=195.4, energy_kwh=50.1),
+                        km_driven=195.4, energy_kwh=50.1, duration_minutes=135),
         ]
         for a in activities:
-            if not db.query(ActivityLog).filter(ActivityLog.id == a.id).first():
+            existing = db.query(ActivityLog).filter(ActivityLog.id == a.id).first()
+            if existing:
+                existing.duration_minutes = a.duration_minutes
+                existing.energy_kwh = a.energy_kwh
+            else:
                 db.add(a)
 
         # Notification templates
