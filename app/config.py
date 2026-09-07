@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "vehicle"
     minio_secure: bool = False
+    telegram_bot_token: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
