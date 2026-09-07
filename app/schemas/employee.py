@@ -12,6 +12,8 @@ class EmployeeBase(BaseModel):
     status: EmployeeStatus
     avatar_url: Optional[str] = Field(None, alias="avatarUrl")
     initials: str
+    chat_id: Optional[str] = Field(None, alias="chatId")
+    subscribed: bool = False
 
     model_config = {"populate_by_name": True}
 
@@ -28,6 +30,8 @@ class EmployeePatch(BaseModel):
     status: Optional[EmployeeStatus] = None
     avatar_url: Optional[str] = Field(None, alias="avatarUrl")
     initials: Optional[str] = None
+    chat_id: Optional[str] = Field(None, alias="chatId")
+    subscribed: Optional[bool] = None
 
     model_config = {"populate_by_name": True}
 
@@ -41,15 +45,19 @@ class EmployeeOut(BaseModel):
     status: EmployeeStatus
     avatar_url: Optional[str] = Field(None, serialization_alias="avatarUrl")
     initials: str
+    chat_id: Optional[str] = Field(None, serialization_alias="chatId")
+    subscribed: bool = False
 
     model_config = {"populate_by_name": True, "from_attributes": True}
 
     @classmethod
     def from_orm_model(cls, e) -> "EmployeeOut":
         return cls(
-            id=e.id, name=e.name, email=e.email,
+            id=e.id, name=e.name,
             job_title=e.job_title, phone=e.phone, status=e.status,
             avatar_url=e.avatar_url, initials=e.initials,
+            chat_id=getattr(e, "chat_id", None),
+            subscribed=getattr(e, "subscribed", False) or False,
         )
 
     def model_dump_camel(self) -> dict:
