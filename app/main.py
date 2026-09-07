@@ -1,5 +1,6 @@
 import time
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -9,6 +10,7 @@ from app.database import engine, Base
 from app.limiter import limiter
 # Import all models to register them with Base.metadata
 from app.models import Vehicle, Employee, ActivityLog, NotificationTemplate, NotificationLog, NotificationSchedule, User, VehicleCategory, EmployeeCategory  # noqa: F401
+from app.services.scheduler import scheduler, dispatch_due_schedules
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
 _fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s", datefmt="%Y-%m-%dT%H:%M:%S")
@@ -19,8 +21,20 @@ logger = logging.getLogger("chargehub.api")
 logger.setLevel(logging.INFO)
 logger.addHandler(_console_handler)
 
+
+# ── Lifespan ──────────────────────────────────────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler.add_job(dispatch_due_schedules, "interval", minutes=5, id="telegram_broadcast")
+    scheduler.start()
+    logger.info("Scheduler started — telegram_broadcast every 5 minutes")
+    yield
+    scheduler.shutdown(wait=False)
+    logger.info("Scheduler stopped")
+
+
 # ── App ───────────────────────────────────────────────────────────────────────
-app = FastAPI(title="ChargeHub API", version="1.0.0")
+app = FastAPI(title="ChargeHub API", version="1.0.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -66,11 +80,12 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-from app.routers import vehicles, employees, activities, notifications, auth, dashboard, job_titles, users, categories
+from app.routers import vehicles, employees, activities, notifications, auth, dashboard, job_titles, users, categories, notification_schedules
 app.include_router(vehicles.router)
 app.include_router(employees.router)
 app.include_router(activities.router)
 app.include_router(notifications.router)
+app.include_router(notification_schedules.router)
 app.include_router(auth.router)
 app.include_router(auth.users_router)
 app.include_router(dashboard.router)
