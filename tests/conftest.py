@@ -94,3 +94,5 @@ def operator_headers(client, db_session):
     r = client.post("/api/v1/auth/login", json={"username": "opertest", "password": STRONG_PW})
     token = r.json()["accessToken"]
     return {"Authorization": f"Bearer {token}"}
+
+
