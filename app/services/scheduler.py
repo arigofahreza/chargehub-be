@@ -17,6 +17,7 @@ scheduler = BackgroundScheduler()
 def dispatch_due_schedules() -> None:
     db = SessionLocal()
     try:
+        # Strip tzinfo: DB stores naive datetimes (DateTime column without timezone=True)
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         due = (
             db.query(NotificationSchedule)
@@ -54,6 +55,11 @@ def dispatch_due_schedules() -> None:
                 continue
 
             targets = schedule.get_target_list()
+            if not targets:
+                logger.warning("Schedule %s has no targets, marking failed", schedule.id)
+                schedule.status = "failed"
+                db.commit()
+                continue
             results = []
             for chat_id in targets:
                 success = send_telegram_message(chat_id, rendered_message)

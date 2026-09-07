@@ -12,6 +12,7 @@ class Employee(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     job_title: Mapped[str] = mapped_column(String, nullable=False)
     phone: Mapped[str] = mapped_column(String, nullable=False)
+    email: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True)
     status: Mapped[str] = mapped_column(
         SAEnum("active", "on-leave", "inactive", name="employee_status"),
         nullable=False, default="active"

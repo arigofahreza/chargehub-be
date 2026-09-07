@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_settings_has_telegram_bot_token():
     """Test that settings has telegram_bot_token field as a string."""
     # Import here to avoid loading the app which triggers DB initialization
@@ -9,7 +6,6 @@ def test_settings_has_telegram_bot_token():
     assert isinstance(settings.telegram_bot_token, str)
 
 
-@pytest.mark.no_header
 def test_telegram_bot_token_defaults_to_empty_string():
     """Test that telegram_bot_token defaults to empty string."""
     from app.config import Settings

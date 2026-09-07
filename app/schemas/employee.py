@@ -54,6 +54,7 @@ class EmployeeOut(BaseModel):
     def from_orm_model(cls, e) -> "EmployeeOut":
         return cls(
             id=e.id, name=e.name,
+            email=getattr(e, "email", None),
             job_title=e.job_title, phone=e.phone, status=e.status,
             avatar_url=e.avatar_url, initials=e.initials,
             chat_id=getattr(e, "chat_id", None),

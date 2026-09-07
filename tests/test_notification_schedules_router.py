@@ -23,4 +23,4 @@ def test_create_schedule_requires_auth():
         "/api/v1/notification-schedules",
         json={"templateId": "tmpl-1", "activityId": "act-1", "target": ["123456789"]},
     )
-    assert response.status_code in (201, 401, 404, 422), f"unexpected status {response.status_code}"
+    assert response.status_code in (201, 401, 422), f"unexpected status {response.status_code}"
