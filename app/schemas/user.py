@@ -4,20 +4,21 @@ from pydantic import BaseModel, Field, field_validator
 
 class UserRegister(BaseModel):
     username: str
-    email: str
+    phone: str
     password: str
     first_name: str = Field(alias="firstName")
     last_name: str = Field(default="", alias="lastName")
+    jabatan: str | None = None
 
     model_config = {"populate_by_name": True}
 
-    @field_validator("email")
+    @field_validator("phone")
     @classmethod
-    def validate_email_format(cls, v: str) -> str:
-        pattern = r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$"
-        if not re.match(pattern, v.strip()):
-            raise ValueError("Format email tidak valid (contoh: nama@domain.com)")
-        return v.strip().lower()
+    def validate_phone(cls, v: str) -> str:
+        stripped = re.sub(r"[\s\-\(\)]", "", v.strip())
+        if not re.match(r"^\+?[\d]{8,15}$", stripped):
+            raise ValueError("Nomor telepon tidak valid")
+        return stripped
 
     @field_validator("password")
     @classmethod
@@ -46,7 +47,7 @@ class UserLogin(BaseModel):
 class UserUpdate(BaseModel):
     first_name: str | None = Field(None, alias="firstName")
     last_name: str | None = Field(None, alias="lastName")
-    email: str | None = None
+    phone: str | None = None
 
     model_config = {"populate_by_name": True}
 
@@ -54,7 +55,7 @@ class UserUpdate(BaseModel):
 class UserOut(BaseModel):
     id: str
     username: str
-    email: str
+    phone: str | None = None
     first_name: str = Field(serialization_alias="firstName")
     last_name: str = Field(serialization_alias="lastName")
     is_active: bool = Field(serialization_alias="isActive")
@@ -77,3 +78,40 @@ class TokenOut(BaseModel):
 
     def model_dump_camel(self) -> dict:
         return self.model_dump(by_alias=True)
+
+
+class UserRolePatch(BaseModel):
+    role_category_id: str = Field(alias="roleCategoryId")
+
+    model_config = {"populate_by_name": True}
+
+
+class AdminUserOut(BaseModel):
+    id: str
+    username: str
+    phone: str | None = None
+    first_name: str = Field(serialization_alias="firstName")
+    last_name: str = Field(serialization_alias="lastName")
+    full_name: str = Field(serialization_alias="fullName")
+    is_active: bool = Field(serialization_alias="isActive")
+    role: str
+    role_category_id: str | None = Field(None, serialization_alias="roleCategoryId")
+
+    model_config = {"populate_by_name": True}
+
+    def model_dump_camel(self) -> dict:
+        return self.model_dump(by_alias=True)
+
+    @classmethod
+    def from_user(cls, u) -> "AdminUserOut":
+        return cls(
+            id=u.id,
+            username=u.username,
+            phone=getattr(u, "phone", None),
+            first_name=u.first_name,
+            last_name=u.last_name,
+            full_name=f"{u.first_name} {u.last_name}".strip(),
+            is_active=u.is_active,
+            role=u.role,
+            role_category_id=getattr(u, "role_category_id", None),
+        )

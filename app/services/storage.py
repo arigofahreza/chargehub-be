@@ -50,6 +50,10 @@ def upload_vehicle_photo(file_bytes: bytes, content_type: str, ext: str) -> str:
     return upload_asset(file_bytes, content_type, ext, prefix="vehicles")
 
 
+def upload_activity_icon(file_bytes: bytes, content_type: str, ext: str) -> str:
+    return upload_asset(file_bytes, content_type, ext, prefix="activity-icons")
+
+
 def _set_public_policy(client: Minio, bucket: str) -> None:
     import json
     policy = {

@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import String, Integer, DateTime, Enum as SAEnum, Text
+from sqlalchemy import String, Integer, DateTime, Enum as SAEnum, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional
 from datetime import datetime
@@ -9,7 +9,7 @@ from app.database import Base
 class NotificationTemplate(Base):
     __tablename__ = "notification_templates"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(String, primary_key=True, unique=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String, nullable=False)
     message: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(

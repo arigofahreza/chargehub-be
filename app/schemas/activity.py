@@ -11,6 +11,7 @@ class ActivityLogBase(BaseModel):
     vehicle_name: str = Field(alias="vehicleName")
     unit_id: str = Field(alias="unitId")
     service_type: str = Field(alias="serviceType")
+    supervisor: str
     driver: str
     status: ActivityStatus
     created_by: str = Field(alias="createdBy")
@@ -30,6 +31,7 @@ class ActivityLogPatch(BaseModel):
     vehicle_name: Optional[str] = Field(None, alias="vehicleName")
     unit_id: Optional[str] = Field(None, alias="unitId")
     service_type: Optional[str] = Field(None, alias="serviceType")
+    supervisor: Optional[str] = None
     driver: Optional[str] = None
     status: Optional[ActivityStatus] = None
     created_by: Optional[str] = Field(None, alias="createdBy")
@@ -46,6 +48,7 @@ class ActivityLogOut(BaseModel):
     vehicle_name: str = Field(serialization_alias="vehicleName")
     unit_id: str = Field(serialization_alias="unitId")
     service_type: str = Field(serialization_alias="serviceType")
+    supervisor: Optional[str] = None
     driver: str
     status: ActivityStatus
     created_by: str = Field(serialization_alias="createdBy")
@@ -65,6 +68,7 @@ class ActivityLogOut(BaseModel):
             id=a.id, date_time=dt_str,
             vehicle_id=a.vehicle_id, vehicle_name=a.vehicle_name,
             unit_id=a.unit_id, service_type=a.service_type,
+            supervisor=getattr(a, "supervisor", None),
             driver=a.driver, status=a.status, created_by=a.created_by,
             duration_minutes=getattr(a, "duration_minutes", None),
             energy_kwh=getattr(a, "energy_kwh", None),

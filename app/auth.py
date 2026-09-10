@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
+from app.rbac.enforcer import get_enforcer
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -53,3 +54,28 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return current_user
+
+
+def require_roles(*roles: str):
+    """Dependency factory: pass if current user's role is in `roles`."""
+    def _dep(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Akses ditolak",
+            )
+        return current_user
+    return _dep
+
+
+def require_permission(obj: str, act: str):
+    """Dependency factory: pass if casbin enforcer allows role→obj→act."""
+    def _dep(current_user: User = Depends(get_current_user)) -> User:
+        enforcer = get_enforcer()
+        if not enforcer.enforce(current_user.role, obj, act):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Akses ditolak",
+            )
+        return current_user
+    return _dep

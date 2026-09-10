@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional
+from typing import Optional  # noqa: F401
 from sqlalchemy import String, Boolean, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
@@ -12,7 +12,6 @@ class Employee(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     job_title: Mapped[str] = mapped_column(String, nullable=False)
     phone: Mapped[str] = mapped_column(String, nullable=False)
-    email: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True)
     status: Mapped[str] = mapped_column(
         SAEnum("active", "on-leave", "inactive", name="employee_status"),
         nullable=False, default="active"
@@ -21,6 +20,7 @@ class Employee(Base):
     initials: Mapped[str] = mapped_column(String, nullable=False)
     chat_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     subscribed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    subscribe_token: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

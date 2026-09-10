@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
-from app.schemas.user import UserRegister, UserLogin, UserOut, UserUpdate, TokenOut
-from app.auth import hash_password, verify_password, create_access_token, get_current_user
+from app.models.employee import Employee
+from app.models.category import EmployeeCategory
+from app.schemas.user import UserRegister, UserLogin, UserOut, UserUpdate, TokenOut, AdminUserOut
+from app.auth import hash_password, verify_password, create_access_token, get_current_user, require_admin
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -12,7 +14,7 @@ def _user_out(user: User) -> UserOut:
     return UserOut(
         id=user.id,
         username=user.username,
-        email=user.email,
+        phone=getattr(user, "phone", None),
         first_name=user.first_name,
         last_name=user.last_name,
         is_active=user.is_active,
@@ -21,22 +23,38 @@ def _user_out(user: User) -> UserOut:
 
 
 @router.post("/register", status_code=201)
-def register(body: UserRegister, db: Session = Depends(get_db)):
+def register(
+    body: UserRegister,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
     if db.query(User).filter(User.username == body.username).first():
         raise HTTPException(status_code=400, detail="Username sudah digunakan")
-    if db.query(User).filter(User.email == body.email).first():
-        raise HTTPException(status_code=400, detail="Email sudah terdaftar")
+    cat = db.query(EmployeeCategory).filter(EmployeeCategory.name == body.jabatan).first() if body.jabatan else None
     user = User(
         username=body.username,
-        email=body.email,
+        phone=body.phone,
         hashed_password=hash_password(body.password),
         first_name=body.first_name,
         last_name=body.last_name,
+        role_category_id=cat.id if cat else None,
     )
     db.add(user)
+
+    full_name = f"{body.first_name} {body.last_name}".strip()
+    initials = "".join(p[0].upper() for p in full_name.split() if p)[:2]
+    employee = Employee(
+        name=full_name,
+        job_title=body.jabatan or "",
+        phone=body.phone or "",
+        initials=initials,
+        status="active",
+    )
+    db.add(employee)
+
     db.commit()
     db.refresh(user)
-    return _user_out(user).model_dump_camel()
+    return AdminUserOut.from_user(user).model_dump_camel()
 
 
 @router.post("/login")
@@ -67,11 +85,8 @@ def update_me(
         current_user.first_name = body.first_name.strip()
     if body.last_name is not None:
         current_user.last_name = body.last_name.strip()
-    if body.email is not None:
-        existing = db.query(User).filter(User.email == body.email, User.id != current_user.id).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Email sudah digunakan akun lain")
-        current_user.email = body.email.strip()
+    if body.phone is not None:
+        current_user.phone = body.phone.strip()
     db.commit()
     db.refresh(current_user)
     return _user_out(current_user).model_dump_camel()

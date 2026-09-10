@@ -136,9 +136,12 @@ def patch_vehicle(vehicle_id: str, payload: VehiclePatch, db: Session = Depends(
     v = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
     if not v:
         raise HTTPException(status_code=404, detail="Vehicle not found")
-    for field, value in payload.model_dump(exclude_unset=True, by_alias=False).items():
+    updated_fields = payload.model_dump(exclude_unset=True, by_alias=False)
+    for field, value in updated_fields.items():
         if hasattr(v, field):
             setattr(v, field, value)
+    if "make" in updated_fields or "model" in updated_fields:
+        v.name = f"{v.make} {v.model}".strip()
     db.commit()
     db.refresh(v)
     return VehicleOut.from_orm_model(
