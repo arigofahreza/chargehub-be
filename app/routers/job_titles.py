@@ -1,20 +1,22 @@
+from collections import defaultdict
 from fastapi import APIRouter, Depends
-from app.auth import get_current_user
-from app.models.user import User
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.models.category import EmployeeCategory
 
 router = APIRouter(prefix="/api/v1/job-titles", tags=["job-titles"])
 
-JOB_TITLES = [
-    "Driver",
-    "Fleet Manager",
-    "Fleet Supervisor",
-    "EV Technician",
-    "Maintenance Technician",
-    "Operations Coordinator",
-    "Logistics Coordinator",
-]
-
 
 @router.get("")
-def list_job_titles(_: User = Depends(get_current_user)):
-    return JOB_TITLES
+def list_job_titles(db: Session = Depends(get_db)):
+    cats = db.query(EmployeeCategory).order_by(EmployeeCategory.name).all()
+    return [c.name for c in cats]
+
+
+@router.get("/role-map")
+def get_role_jabatan_map(db: Session = Depends(get_db)):
+    cats = db.query(EmployeeCategory).filter(EmployeeCategory.role.isnot(None)).all()
+    result: dict[str, list[str]] = defaultdict(list)
+    for cat in cats:
+        result[cat.role].append(cat.name)
+    return dict(result)

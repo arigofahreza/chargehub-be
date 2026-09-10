@@ -4,11 +4,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, require_permission
 from app.models.activity import ActivityLog
+from app.models.user import User
 from app.schemas.activity import ActivityLogCreate, ActivityLogPatch, ActivityLogOut
 
-router = APIRouter(prefix="/api/v1/activities", tags=["activities"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/api/v1/activities", tags=["activities"])
+
+STACKING_TYPES = {"heavy stacking", "light stacking"}
+CHARGING_TYPES = {"charging"}
 
 
 @router.get("/avg-duration")
@@ -16,6 +20,7 @@ def get_avg_duration(
     vehicle_id: str = Query(..., alias="vehicleId"),
     service_type: str = Query(..., alias="serviceType"),
     db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
 ):
     result = db.query(func.avg(ActivityLog.duration_minutes)).filter(
         ActivityLog.vehicle_id == vehicle_id,
@@ -31,20 +36,33 @@ def get_avg_duration(
 def list_activities(
     status: Optional[str] = Query(None),
     vehicle_id: Optional[str] = Query(None, alias="vehicleId"),
+    date_from: Optional[str] = Query(None, alias="dateFrom"),
+    date_to: Optional[str] = Query(None, alias="dateTo"),
     db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
 ):
     q = db.query(ActivityLog)
     if status:
         q = q.filter(ActivityLog.status == status)
     if vehicle_id:
         q = q.filter(ActivityLog.vehicle_id == vehicle_id)
+    if date_from:
+        dt_from = datetime.fromisoformat(date_from.replace("Z", "+00:00"))
+        q = q.filter(ActivityLog.date_time >= dt_from.replace(tzinfo=None))
+    if date_to:
+        dt_to = datetime.fromisoformat(date_to.replace("Z", "+00:00"))
+        q = q.filter(ActivityLog.date_time <= dt_to.replace(tzinfo=None))
     q = q.order_by(ActivityLog.date_time.desc())
     logs = q.all()
     return [ActivityLogOut.from_orm_model(a).model_dump_camel() for a in logs]
 
 
 @router.get("/{activity_id}")
-def get_activity(activity_id: str, db: Session = Depends(get_db)):
+def get_activity(
+    activity_id: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
     a = db.query(ActivityLog).filter(ActivityLog.id == activity_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Activity not found")
@@ -52,7 +70,24 @@ def get_activity(activity_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("", status_code=201)
-def create_activity(body: ActivityLogCreate, db: Session = Depends(get_db)):
+def create_activity(
+    body: ActivityLogCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stype_lower = body.service_type.lower()
+    role = current_user.role
+    if role == "operator" and stype_lower not in CHARGING_TYPES:
+        raise HTTPException(
+            status_code=403,
+            detail="Operator hanya dapat menginput aktivitas Charging",
+        )
+    if role == "spotter" and stype_lower not in STACKING_TYPES:
+        raise HTTPException(
+            status_code=403,
+            detail="Spotter hanya dapat menginput aktivitas Stacking",
+        )
+
     # Auto-complete any in-progress activity for the same vehicle
     prev = (
         db.query(ActivityLog)
@@ -70,7 +105,9 @@ def create_activity(body: ActivityLogCreate, db: Session = Depends(get_db)):
     a = ActivityLog(
         date_time=body.date_time, vehicle_id=body.vehicle_id,
         vehicle_name=body.vehicle_name, unit_id=body.unit_id,
-        service_type=body.service_type, driver=body.driver,
+        service_type=body.service_type,
+        supervisor=body.supervisor,
+        driver=body.driver,
         status="in-progress",
         created_by=body.created_by,
         duration_minutes=body.duration_minutes,
@@ -83,10 +120,22 @@ def create_activity(body: ActivityLogCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/{activity_id}")
-def patch_activity(activity_id: str, body: ActivityLogPatch, db: Session = Depends(get_db)):
+def patch_activity(
+    activity_id: str,
+    body: ActivityLogPatch,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     a = db.query(ActivityLog).filter(ActivityLog.id == activity_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Activity not found")
+    if body.service_type:
+        stype_lower = body.service_type.lower()
+        role = current_user.role
+        if role == "operator" and stype_lower not in CHARGING_TYPES:
+            raise HTTPException(status_code=403, detail="Operator hanya dapat menginput aktivitas Charging")
+        if role == "spotter" and stype_lower not in STACKING_TYPES:
+            raise HTTPException(status_code=403, detail="Spotter hanya dapat menginput aktivitas Stacking")
     data = body.model_dump(exclude_unset=True, by_alias=False)
     for key, value in data.items():
         setattr(a, key, value)
@@ -96,7 +145,11 @@ def patch_activity(activity_id: str, body: ActivityLogPatch, db: Session = Depen
 
 
 @router.delete("/{activity_id}", status_code=204)
-def delete_activity(activity_id: str, db: Session = Depends(get_db)):
+def delete_activity(
+    activity_id: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("activities", "write")),
+):
     a = db.query(ActivityLog).filter(ActivityLog.id == activity_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Activity not found")

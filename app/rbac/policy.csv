@@ -1,0 +1,41 @@
+# admin inherits all pengawas permissions
+g, admin, pengawas
+
+# pengawas: full app access (not management)
+p, pengawas, dashboard, read
+p, pengawas, vehicles, read
+p, pengawas, vehicles, write
+p, pengawas, employees, read
+p, pengawas, employees, write
+p, pengawas, notifications, read
+p, pengawas, notifications, write
+p, pengawas, activities, read
+p, pengawas, activities, write
+p, pengawas, activities:charging, write
+p, pengawas, activities:stacking, write
+p, pengawas, categories, read
+
+# admin: management + users (inherits pengawas via g above)
+p, admin, management, read
+p, admin, management, write
+p, admin, users, read
+p, admin, users, write
+p, admin, categories, write
+
+# operator: read all + write charging activities only
+p, operator, dashboard, read
+p, operator, vehicles, read
+p, operator, employees, read
+p, operator, notifications, read
+p, operator, activities, read
+p, operator, activities:charging, write
+p, operator, categories, read
+
+# spotter: read all + write stacking activities only
+p, spotter, dashboard, read
+p, spotter, vehicles, read
+p, spotter, employees, read
+p, spotter, notifications, read
+p, spotter, activities, read
+p, spotter, activities:stacking, write
+p, spotter, categories, read

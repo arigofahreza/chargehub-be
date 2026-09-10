@@ -15,6 +15,7 @@ class ActivityLog(Base):
     vehicle_name: Mapped[str] = mapped_column(String, nullable=False)
     unit_id: Mapped[str] = mapped_column(String, nullable=False)
     service_type: Mapped[str] = mapped_column(String, nullable=False)
+    supervisor: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     driver: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(
         SAEnum("completed", "in-progress", "pending", name="activity_status"),
