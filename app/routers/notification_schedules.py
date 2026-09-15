@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -7,6 +7,7 @@ from app.auth import get_current_user, require_permission
 from app.models.notification_schedule import NotificationSchedule
 from app.models.user import User
 from app.schemas.notification_schedule import NotificationScheduleCreate, NotificationScheduleOut
+from app.utils.tz import WIB
 
 router = APIRouter(prefix="/api/v1/notification-schedules", tags=["notification-schedules"])
 
@@ -30,9 +31,7 @@ def create_schedule(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("notifications", "write")),
 ):
-    send_at = body.send_at or datetime.now(timezone.utc)
-    if send_at.tzinfo is not None:
-        send_at = send_at.replace(tzinfo=None)
+    send_at = body.send_at or datetime.now(WIB)
 
     s = NotificationSchedule(
         template_id=body.template_id,

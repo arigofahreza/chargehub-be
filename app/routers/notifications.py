@@ -1,7 +1,7 @@
 import csv
 import io
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -11,6 +11,7 @@ from app.limiter import limiter
 from app.models.notification import NotificationTemplate
 from app.models.notification_log import NotificationLog
 from app.models.user import User
+from app.utils.tz import WIB
 from app.schemas.notification import (
     NotificationTemplateCreate, NotificationTemplatePatch, NotificationTemplateOut,
     NotificationLogCreate, NotificationLogOut,
@@ -41,7 +42,7 @@ def create_template(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("notifications", "write")),
 ):
-    last_sent_dt = datetime.fromisoformat(body.last_sent.replace("Z", "+00:00")) if body.last_sent else datetime.utcnow()
+    last_sent_dt = datetime.fromisoformat(body.last_sent.replace("Z", "+00:00")) if body.last_sent else datetime.now(WIB)
     t = NotificationTemplate(
         name=body.name, message=body.message, status=body.status,
         employee_count=0, phone_count=body.phone_count,
@@ -70,7 +71,7 @@ def download_logs(
     for log in logs:
         dt = log.sent_at
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=WIB)
         writer.writerow([
             dt.strftime("%Y-%m-%d %H:%M:%S"),
             log.to_phone,
@@ -108,7 +109,7 @@ def create_log(
         template_id=body.template_id,
         template_name=body.template_name,
         status=body.status,
-        sent_at=datetime.now(timezone.utc),
+        sent_at=datetime.now(WIB),
         sent_by_id=current_user.id,
         note=body.note,
     )

@@ -1,6 +1,7 @@
 from typing import Literal, Optional
-from datetime import datetime, timezone
+from datetime import datetime
 from pydantic import BaseModel, Field
+from app.utils.tz import WIB
 
 TemplateStatus = Literal["active", "inactive"]
 
@@ -88,7 +89,7 @@ class NotificationLogOut(BaseModel):
     def from_orm(cls, log) -> "NotificationLogOut":
         dt = log.sent_at
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=WIB)
         return cls(
             id=log.id,
             to_phone=log.to_phone,

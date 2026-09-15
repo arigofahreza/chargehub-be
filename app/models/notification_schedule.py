@@ -1,10 +1,11 @@
 import uuid
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlalchemy import String, Text, DateTime, Enum as SAEnum, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
+from app.utils.tz import WIB
 
 
 class NotificationSchedule(Base):
@@ -19,10 +20,10 @@ class NotificationSchedule(Base):
     )
     target: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(WIB)
     )
-    send_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    send_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
     )
     status: Mapped[str] = mapped_column(
         SAEnum("pending", "sent", "failed", name="schedule_status"),
@@ -35,9 +36,9 @@ class NotificationSchedule(Base):
         if "target" not in kwargs:
             kwargs["target"] = "[]"
         if "created_at" not in kwargs:
-            kwargs["created_at"] = datetime.now(timezone.utc)
+            kwargs["created_at"] = datetime.now(WIB)
         if "send_at" not in kwargs:
-            kwargs["send_at"] = datetime.now(timezone.utc)
+            kwargs["send_at"] = None
         super().__init__(**kwargs)
 
     def get_target_list(self) -> list[str]:
