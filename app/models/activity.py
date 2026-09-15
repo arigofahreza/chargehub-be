@@ -1,6 +1,7 @@
+import json
 import uuid
 from typing import Optional
-from sqlalchemy import String, DateTime, Float, Enum as SAEnum
+from sqlalchemy import String, DateTime as _DTCol, Float, Text, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 from app.database import Base
@@ -10,12 +11,12 @@ class ActivityLog(Base):
     __tablename__ = "activity_logs"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    date_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    date_time: Mapped[datetime] = mapped_column(_DTCol(timezone=True), nullable=False)
     vehicle_id: Mapped[str] = mapped_column(String, nullable=False)
     vehicle_name: Mapped[str] = mapped_column(String, nullable=False)
     unit_id: Mapped[str] = mapped_column(String, nullable=False)
     service_type: Mapped[str] = mapped_column(String, nullable=False)
-    supervisor: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    supervisors: Mapped[str] = mapped_column(Text, nullable=True, default="[]")
     driver: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(
         SAEnum("completed", "in-progress", "pending", name="activity_status"),
@@ -25,3 +26,13 @@ class ActivityLog(Base):
     km_driven: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
     energy_kwh: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
     duration_minutes: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
+    cost_rupiah: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    def get_supervisor_list(self) -> list[str]:
+        try:
+            return json.loads(self.supervisors or "[]")
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def set_supervisor_list(self, names: list[str]) -> None:
+        self.supervisors = json.dumps(names, ensure_ascii=False)

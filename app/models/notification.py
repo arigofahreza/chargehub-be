@@ -1,5 +1,6 @@
 import uuid
 from sqlalchemy import String, Integer, DateTime, Enum as SAEnum, Text, UniqueConstraint
+from app.utils.tz import WIB
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional
 from datetime import datetime
@@ -18,6 +19,6 @@ class NotificationTemplate(Base):
     )
     employee_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     phone_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    last_sent: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    last_sent: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     category: Mapped[str] = mapped_column(String, nullable=False, default="General")
     recipient_ids: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")

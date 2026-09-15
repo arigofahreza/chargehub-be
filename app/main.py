@@ -25,6 +25,7 @@ logger.addHandler(_console_handler)
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 def _seed_notification_templates(db_session):
     from datetime import datetime
+    from app.utils.tz import WIB
     templates = [
         {
             "name": "Peringatan Baterai 30%",
@@ -34,9 +35,15 @@ def _seed_notification_templates(db_session):
         },
         {
             "name": "Baterai Hampir Penuh",
-            "message": "🔋 Baterai kendaraan Anda sudah *85% terisi* (tersisa 15% lagi untuk penuh). Silakan bersiap — kendaraan akan segera siap digunakan.",
+            "message": "🔋 *{{ vehicle_name }}* pengisian hampir selesai! Baterai sudah mencapai 90%. Silakan bersiap untuk mengambil kendaraan.\nDriver: {{ driver }}",
             "status": "active",
-            "category": "Reminder",
+            "category": "Charging",
+        },
+        {
+            "name": "Baterai Penuh",
+            "message": "✅ *{{ vehicle_name }}* pengisian selesai! Baterai sudah 100%. Kendaraan siap digunakan.\nDriver: {{ driver }}",
+            "status": "active",
+            "category": "Charging",
         },
     ]
     for t in templates:
@@ -48,8 +55,21 @@ def _seed_notification_templates(db_session):
                 status=t["status"],
                 category=t["category"],
                 phone_count=0,
-                last_sent=datetime.utcnow(),
+                last_sent=datetime.now(WIB),
             ))
+    db_session.commit()
+
+
+def _seed_app_config(db_session):
+    from app.models.app_config import AppConfig
+    from datetime import datetime as _dt
+    from app.utils.tz import WIB as _WIB
+    defaults = [
+        ("tariff_kwh_rupiah", "1114", "Tarif listrik per kWh dalam Rupiah"),
+    ]
+    for key, value, desc in defaults:
+        if not db_session.query(AppConfig).filter(AppConfig.key == key).first():
+            db_session.add(AppConfig(key=key, value=value, description=desc, updated_at=_dt.now(_WIB)))
     db_session.commit()
 
 
@@ -59,6 +79,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         _seed_notification_templates(db)
+        _seed_app_config(db)
     finally:
         db.close()
     scheduler.add_job(dispatch_due_schedules, "interval", minutes=5, id="telegram_broadcast")
@@ -126,7 +147,7 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-from app.routers import vehicles, employees, activities, notifications, auth, dashboard, job_titles, users, categories, notification_schedules, telegram_webhook
+from app.routers import vehicles, employees, activities, notifications, auth, dashboard, job_titles, users, categories, notification_schedules, telegram_webhook, app_config
 app.include_router(vehicles.router)
 app.include_router(employees.router)
 app.include_router(activities.router)
@@ -139,6 +160,7 @@ app.include_router(job_titles.router)
 app.include_router(users.router)
 app.include_router(categories.router)
 app.include_router(telegram_webhook.router)
+app.include_router(app_config.router)
 
 
 @app.get("/health")

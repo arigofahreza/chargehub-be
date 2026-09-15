@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     minio_bucket: str = "vehicle"
     minio_secure: bool = False
     telegram_bot_token: str = ""
+    ml_api_url: str = "http://localhost:8001"
+    ml_api_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

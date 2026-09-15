@@ -155,6 +155,10 @@ def seed():
                                  message="Your trip summary for today: {distance} km driven. Battery remaining: {batteryLevel}%.",
                                  status="inactive", employee_count=0, phone_count=0,
                                  last_sent=datetime(2023, 12, 31, 23, 59)),
+            NotificationTemplate(id="c3f4e5d6-a7b8-4c9d-8e0f-1a2b3c4d5e6f", name="Baterai Penuh",
+                                 message="✅ *{{ vehicle_name }}* pengisian selesai! Baterai sudah 100%. Kendaraan siap digunakan.\nDriver: {{ driver }}",
+                                 status="active", employee_count=0, phone_count=0,
+                                 last_sent=datetime(2024, 1, 1, 0, 0), category="Charging"),
         ]
         for t in templates:
             if not db.query(NotificationTemplate).filter(NotificationTemplate.id == t.id).first():

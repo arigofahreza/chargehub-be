@@ -1,9 +1,10 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlalchemy import String, Text, DateTime, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
+from app.utils.tz import WIB
 
 
 class NotificationLog(Base):
@@ -20,7 +21,7 @@ class NotificationLog(Base):
         SAEnum("sent", "failed", name="notif_log_status"), nullable=False, default="sent"
     )
     sent_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(WIB)
     )
     sent_by_id: Mapped[Optional[str]] = mapped_column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
