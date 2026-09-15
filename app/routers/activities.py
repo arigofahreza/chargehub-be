@@ -294,11 +294,12 @@ def patch_activity(
     # Reschedule if any schedule-affecting field changed
     _SCHEDULE_FIELDS = {"date_time", "supervisors", "driver"}
     if _SCHEDULE_FIELDS.intersection(body.model_fields_set):
+        # Delete WITHOUT committing yet — recreate function commits both atomically.
+        # If recreate fails, delete is rolled back too.
         db.query(NotificationSchedule).filter(
             NotificationSchedule.activity_id == a.id,
             NotificationSchedule.status == "pending",
         ).delete()
-        db.commit()
         supervisors = new_supervisors if new_supervisors is not None else a.get_supervisor_list()
         if a.service_type.lower() in CHARGING_TYPES:
             _auto_schedule_charging(db, a, supervisors, a.driver or "")

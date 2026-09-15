@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.limiter import limiter
 from app.models.user import User
 from app.models.employee import Employee
 from app.models.category import EmployeeCategory
@@ -57,10 +58,16 @@ def register(
     return AdminUserOut.from_user(user).model_dump_camel()
 
 
+_DUMMY_HASH = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
+
+
 @router.post("/login")
-def login(body: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login(request: Request, body: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == body.username).first()
-    if not user or not verify_password(body.password, user.hashed_password):
+    # Always run bcrypt — prevents username enumeration via timing side-channel
+    password_ok = verify_password(body.password, user.hashed_password if user else _DUMMY_HASH)
+    if not user or not password_ok or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Username atau password salah")
     token = create_access_token({"sub": user.id})
     result = TokenOut(access_token=token, token_type="bearer", user=_user_out(user).model_dump_camel())

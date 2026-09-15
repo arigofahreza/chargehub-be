@@ -1,6 +1,7 @@
 import logging
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
+from app.config import settings
 from app.database import get_db
 from app.models.employee import Employee
 from app.services.telegram import send_telegram_message
@@ -12,6 +13,11 @@ router = APIRouter(prefix="/api/v1/telegram", tags=["telegram"])
 
 @router.post("/webhook")
 async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
+    if settings.telegram_webhook_secret:
+        incoming = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if incoming != settings.telegram_webhook_secret:
+            logger.warning("Webhook rejected: invalid secret token from %s", request.client.host if request.client else "unknown")
+            return {"ok": True}
     try:
         data = await request.json()
     except Exception:
