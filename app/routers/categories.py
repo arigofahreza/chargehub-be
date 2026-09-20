@@ -138,7 +138,7 @@ def list_activity_categories(
 @router.post("/activity", status_code=201)
 async def create_activity_category(
     name: str = Form(...),
-    icon: UploadFile = File(...),
+    icon: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("categories", "write")),
 ):
@@ -146,12 +146,12 @@ async def create_activity_category(
     if existing:
         raise HTTPException(status_code=400, detail="Kategori sudah ada")
 
-    contents = await icon.read()
-    if not contents:
-        raise HTTPException(status_code=400, detail="Icon tidak boleh kosong")
-
-    suffix = Path(icon.filename or "icon.png").suffix.lower() or ".png"
-    icon_url = upload_activity_icon(contents, icon.content_type or "image/png", suffix)
+    icon_url = None
+    if icon and icon.filename:
+        contents = await icon.read()
+        if contents:
+            suffix = Path(icon.filename).suffix.lower() or ".png"
+            icon_url = upload_activity_icon(contents, icon.content_type or "image/png", suffix)
 
     cat = ActivityCategory(name=name, icon_url=icon_url)
     db.add(cat)
@@ -204,6 +204,7 @@ def _rate_out(rate: BatteryDrainRate, db: Session) -> BatteryDrainRateOut:
         activity_id=rate.activity_id,
         activity_name=act.name if act else "",
         persen_penurunan=rate.persen_penurunan,
+        category=rate.category,
     )
 
 
@@ -225,7 +226,7 @@ def create_battery_drain_rate(
     act = db.query(ActivityCategory).filter(ActivityCategory.id == body.activity_id).first()
     if not act:
         raise HTTPException(status_code=404, detail="Aktivitas tidak ditemukan")
-    rate = BatteryDrainRate(activity_id=body.activity_id, persen_penurunan=body.persen_penurunan)
+    rate = BatteryDrainRate(activity_id=body.activity_id, persen_penurunan=body.persen_penurunan, category=body.category)
     db.add(rate)
     db.commit()
     db.refresh(rate)
@@ -243,6 +244,8 @@ def update_battery_drain_rate(
     if not rate:
         raise HTTPException(status_code=404, detail="Data tidak ditemukan")
     rate.persen_penurunan = body.persen_penurunan
+    if body.category is not None:
+        rate.category = body.category
     db.commit()
     db.refresh(rate)
     return _rate_out(rate, db).model_dump_camel()

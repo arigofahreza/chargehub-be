@@ -1,7 +1,9 @@
 import os
 import uuid as _uuid
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
@@ -10,8 +12,15 @@ from app.auth import get_current_user
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.activity import ActivityLog
+from app.models.vehicle_battery_state import VehicleBatteryState
+from app.models.battery_drain_rate import BatteryDrainRate
+from app.models.category import ActivityCategory
 from app.schemas.vehicle import VehicleCreate, VehiclePatch, VehicleOut
 from app.services.storage import upload_vehicle_photo
+from app.utils.tz import WIB
+
+_CHARGING_RATE_PCT_PER_MIN = 1.2
+_CHARGING_TYPES = {"charging"}
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
@@ -147,3 +156,81 @@ def patch_vehicle(vehicle_id: str, payload: VehiclePatch, db: Session = Depends(
     return VehicleOut.from_orm_model(
         v, compute_operating_time(v.id, db), compute_vehicle_status(v.id, db)
     ).model_dump_camel()
+
+
+# ── Battery state ─────────────────────────────────────────────────────────────
+
+class BatteryStateCalibrate(BaseModel):
+    battery_pct: float
+
+
+@router.get("/{vehicle_id}/battery-state")
+def get_battery_state(vehicle_id: str, db: Session = Depends(get_db)):
+    state = db.query(VehicleBatteryState).filter(VehicleBatteryState.vehicle_id == vehicle_id).first()
+    stored_pct = state.battery_pct if state else 100.0
+    calculated_at = state.calculated_at.isoformat() if state else None
+    source_activity_id = state.source_activity_id if state else None
+
+    # Project battery on-the-fly if there is an in-progress activity
+    in_progress = (
+        db.query(ActivityLog)
+        .filter(ActivityLog.vehicle_id == vehicle_id, ActivityLog.status == "in-progress")
+        .order_by(ActivityLog.date_time.desc())
+        .first()
+    )
+    if in_progress:
+        now = datetime.now(WIB)
+        act_dt = in_progress.date_time
+        if act_dt.tzinfo is None:
+            act_dt = act_dt.replace(tzinfo=WIB)
+        elapsed_minutes = max(0.0, (now - act_dt).total_seconds() / 60)
+        stype = in_progress.service_type.lower()
+        if stype in _CHARGING_TYPES:
+            live_pct = round(min(100.0, stored_pct + elapsed_minutes * _CHARGING_RATE_PCT_PER_MIN), 2)
+        else:
+            cat = db.query(ActivityCategory).filter(ActivityCategory.name == in_progress.service_type).first()
+            drain = db.query(BatteryDrainRate).filter(BatteryDrainRate.activity_id == cat.id).first() if cat else None
+            if drain and drain.persen_penurunan > 0:
+                live_pct = round(max(0.0, stored_pct - elapsed_minutes * drain.persen_penurunan), 2)
+            else:
+                live_pct = stored_pct
+        return {
+            "batteryPct": live_pct,
+            "calculatedAt": now.isoformat(),
+            "sourceActivityId": source_activity_id,
+        }
+
+    return {
+        "batteryPct": stored_pct,
+        "calculatedAt": calculated_at,
+        "sourceActivityId": source_activity_id,
+    }
+
+
+@router.patch("/{vehicle_id}/battery-state")
+def calibrate_battery_state(
+    vehicle_id: str,
+    body: BatteryStateCalibrate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    v = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
+    if not v:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    if body.battery_pct < 0 or body.battery_pct > 100:
+        raise HTTPException(status_code=400, detail="battery_pct harus 0–100")
+    state = db.query(VehicleBatteryState).filter(VehicleBatteryState.vehicle_id == vehicle_id).first()
+    now = datetime.now(WIB)
+    if state:
+        state.battery_pct = body.battery_pct
+        state.calculated_at = now
+        state.source_activity_id = None
+    else:
+        db.add(VehicleBatteryState(
+            vehicle_id=vehicle_id,
+            battery_pct=body.battery_pct,
+            calculated_at=now,
+            source_activity_id=None,
+        ))
+    db.commit()
+    return {"batteryPct": body.battery_pct, "calculatedAt": now.isoformat(), "sourceActivityId": None}

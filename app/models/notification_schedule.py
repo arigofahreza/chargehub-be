@@ -2,7 +2,7 @@ import uuid
 import json
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, DateTime, Enum as SAEnum, ForeignKey
+from sqlalchemy import String, Text, DateTime, Enum as SAEnum, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 from app.utils.tz import WIB
@@ -10,13 +10,16 @@ from app.utils.tz import WIB
 
 class NotificationSchedule(Base):
     __tablename__ = "notification_schedules"
+    __table_args__ = (
+        Index("ix_notif_sched_status_send_at", "status", "send_at"),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     template_id: Mapped[Optional[str]] = mapped_column(
         String, ForeignKey("notification_templates.id", ondelete="SET NULL"), nullable=True
     )
     activity_id: Mapped[Optional[str]] = mapped_column(
-        String, ForeignKey("activity_logs.id", ondelete="SET NULL"), nullable=True
+        String, ForeignKey("activity_logs.id", ondelete="SET NULL"), nullable=True, index=True
     )
     target: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     created_at: Mapped[datetime] = mapped_column(

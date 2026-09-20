@@ -21,7 +21,7 @@ class NotificationLog(Base):
         SAEnum("sent", "failed", name="notif_log_status"), nullable=False, default="sent"
     )
     sent_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(WIB)
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(WIB), index=True
     )
     sent_by_id: Mapped[Optional[str]] = mapped_column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True

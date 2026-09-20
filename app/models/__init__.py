@@ -8,3 +8,4 @@ from app.models.user import User  # noqa: F401
 from app.models.category import VehicleCategory, EmployeeCategory, ActivityCategory  # noqa: F401
 from app.models.battery_drain_rate import BatteryDrainRate  # noqa: F401
 from app.models.app_config import AppConfig  # noqa: F401
+from app.models.vehicle_battery_state import VehicleBatteryState  # noqa: F401

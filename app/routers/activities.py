@@ -14,9 +14,10 @@ from app.models.employee import Employee
 from app.models.notification import NotificationTemplate
 from app.models.notification_schedule import NotificationSchedule
 from app.models.vehicle import Vehicle
+from app.models.vehicle_battery_state import VehicleBatteryState
 from app.models.user import User
 from app.schemas.activity import ActivityLogCreate, ActivityLogPatch, ActivityLogOut
-from app.services.ml_client import normalize_activity, get_shift, predict_battery_after
+from app.utils.tz import WIB
 
 logger = logging.getLogger("chargehub.activities")
 
@@ -30,6 +31,48 @@ _MINUTES_TO_90 = int((90 - 30) / 1.2)   # 50 minutes
 _MINUTES_TO_100 = _MINUTES_TO_90 + 15   # 65 minutes
 
 _DEFAULT_TARIFF_KWH = 1114.0
+_CHARGING_RATE_PCT_PER_MIN = 1.2
+
+
+def _get_battery_before(db: Session, vehicle_id: str) -> float:
+    state = db.query(VehicleBatteryState).filter(VehicleBatteryState.vehicle_id == vehicle_id).first()
+    return state.battery_pct if state else 100.0
+
+
+def _calc_battery_after(db: Session, vehicle_id: str, service_type: str, elapsed_minutes: float) -> float:
+    battery_before = _get_battery_before(db, vehicle_id)
+    if service_type.lower() in CHARGING_TYPES:
+        return round(min(100.0, battery_before + elapsed_minutes * _CHARGING_RATE_PCT_PER_MIN), 2)
+    cat = db.query(ActivityCategory).filter(ActivityCategory.name == service_type).first()
+    if not cat:
+        return battery_before
+    drain_row = db.query(BatteryDrainRate).filter(BatteryDrainRate.activity_id == cat.id).first()
+    if not drain_row or drain_row.persen_penurunan <= 0:
+        return battery_before
+    return round(max(0.0, battery_before - elapsed_minutes * drain_row.persen_penurunan), 2)
+
+
+def _upsert_battery_state(db: Session, vehicle_id: str, battery_pct: float, source_activity_id: str) -> None:
+    state = db.query(VehicleBatteryState).filter(VehicleBatteryState.vehicle_id == vehicle_id).first()
+    now = datetime.now(WIB)
+    if state:
+        state.battery_pct = battery_pct
+        state.calculated_at = now
+        state.source_activity_id = source_activity_id
+    else:
+        db.add(VehicleBatteryState(
+            vehicle_id=vehicle_id,
+            battery_pct=battery_pct,
+            calculated_at=now,
+            source_activity_id=source_activity_id,
+        ))
+
+
+def _cancel_pending_schedules(db: Session, activity_id: str) -> None:
+    db.query(NotificationSchedule).filter(
+        NotificationSchedule.activity_id == activity_id,
+        NotificationSchedule.status == "pending",
+    ).delete()
 
 
 def _get_tariff(db: Session) -> float:
@@ -95,24 +138,6 @@ def _auto_schedule_non_charging(db: Session, activity: ActivityLog, supervisors:
         minutes_to_30 = 70.0 / drain_rate
 
         act_dt = activity.date_time
-
-        shift = get_shift(act_dt.hour)
-        ml_activity = normalize_activity(activity.service_type)
-        if ml_activity:
-            predicted = predict_battery_after(
-                truck_id=activity.unit_id,
-                activity=ml_activity,
-                duration_minutes=minutes_to_30,
-                battery_before_pct=100.0,
-                shift=shift,
-            )
-            if predicted is not None:
-                logger.info(
-                    "ML predicted battery_after=%.2f%% at %.1fmin for activity %s",
-                    predicted, minutes_to_30, activity.id,
-                )
-        else:
-            logger.info("service_type '%s' not in ML ValidActivity, ML call skipped", activity.service_type)
 
         tmpl = db.query(NotificationTemplate).filter(NotificationTemplate.name == "Peringatan Baterai 30%").first()
         if not tmpl:
@@ -227,6 +252,10 @@ def create_activity(
         if new_dt > prev_dt:
             delta = new_dt - prev_dt
             prev.duration_minutes = round(delta.total_seconds() / 60, 1)
+        _cancel_pending_schedules(db, prev.id)
+        elapsed = prev.duration_minutes or 0.0
+        battery_after = _calc_battery_after(db, prev.vehicle_id, prev.service_type, elapsed)
+        _upsert_battery_state(db, prev.vehicle_id, battery_after, prev.id)
 
     # For charging: auto-calc energy_kwh (30%→100% = 70% of capacity) and cost_rupiah
     energy_kwh = body.energy_kwh
@@ -286,10 +315,19 @@ def patch_activity(
         a.set_supervisor_list(new_supervisors)
     elif "supervisors" in data:
         data.pop("supervisors")
+    prev_status = a.status
     for key, value in data.items():
         setattr(a, key, value)
     db.commit()
     db.refresh(a)
+
+    # When manually completing an activity: cancel schedules + update battery state
+    if prev_status == "in-progress" and a.status == "completed":
+        _cancel_pending_schedules(db, a.id)
+        elapsed = a.duration_minutes or 0.0
+        battery_after = _calc_battery_after(db, a.vehicle_id, a.service_type, elapsed)
+        _upsert_battery_state(db, a.vehicle_id, battery_after, a.id)
+        db.commit()
 
     # Reschedule if any schedule-affecting field changed
     _SCHEDULE_FIELDS = {"date_time", "supervisors", "driver"}
