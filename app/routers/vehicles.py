@@ -171,6 +171,14 @@ def get_battery_state(vehicle_id: str, db: Session = Depends(get_db)):
     calculated_at = state.calculated_at.isoformat() if state else None
     source_activity_id = state.source_activity_id if state else None
 
+    # If manual calibration exists, return it directly — it represents current state
+    if state and state.source_activity_id is None:
+        return {
+            "batteryPct": stored_pct,
+            "calculatedAt": calculated_at,
+            "sourceActivityId": None,
+        }
+
     # Project battery on-the-fly if there is an in-progress activity
     in_progress = (
         db.query(ActivityLog)
@@ -180,10 +188,15 @@ def get_battery_state(vehicle_id: str, db: Session = Depends(get_db)):
     )
     if in_progress:
         now = datetime.now(WIB)
+        # Use calibration time as projection base if state was set after activity started
+        state_dt = state.calculated_at if state else None
+        if state_dt and state_dt.tzinfo is None:
+            state_dt = state_dt.replace(tzinfo=WIB)
         act_dt = in_progress.date_time
         if act_dt.tzinfo is None:
             act_dt = act_dt.replace(tzinfo=WIB)
-        elapsed_minutes = max(0.0, (now - act_dt).total_seconds() / 60)
+        base_dt = state_dt if (state_dt and state_dt > act_dt) else act_dt
+        elapsed_minutes = max(0.0, (now - base_dt).total_seconds() / 60)
         stype = in_progress.service_type.lower()
         if stype in _CHARGING_TYPES:
             live_pct = round(min(100.0, stored_pct + elapsed_minutes * _CHARGING_RATE_PCT_PER_MIN), 2)
